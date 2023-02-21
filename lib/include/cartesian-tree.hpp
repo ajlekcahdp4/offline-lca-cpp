@@ -129,20 +129,24 @@ template <typename T> class cartesian_tree final
         auto right_neighbors = utils::get_right_neighbors (sequence);
         std::unordered_map<value_type, base_node_ptr> allocated;
 
+        auto node_from_value = [&allocated, this] (auto val, auto idx) {
+            if ( allocated.count (val) == 0 )
+            {
+                auto to_insert = this->create_node (val, idx);
+                allocated[val] = to_insert;
+                return to_insert;
+            }
+            else
+                return allocated.at (val);
+        };
+
         for ( unsigned i = 0; i < sequence.size (); ++i )
         {
             auto r_neighbor         = right_neighbors[i];
             auto l_neighbor         = left_neighbors[i];
             auto val                = sequence[i];
-            base_node_ptr to_insert = nullptr;
 
-            if ( allocated.count (val) == 0 )
-            {
-                to_insert      = create_node (val, i);
-                allocated[val] = to_insert;
-            }
-            else
-                to_insert = allocated.at (val);
+            base_node_ptr to_insert = node_from_value (val, i);
 
             if ( r_neighbor == -1 )
             {
@@ -153,14 +157,7 @@ template <typename T> class cartesian_tree final
                 }
                 else
                 {
-                    auto parent_v = sequence[l_neighbor];
-                    if ( allocated.count (parent_v) == 0 )
-                    {
-                        to_insert->m_parent = create_node (parent_v, l_neighbor);
-                        allocated[parent_v] = to_insert->m_parent;
-                    }
-                    else
-                        to_insert->m_parent = allocated.at (parent_v);
+                    to_insert->m_parent = node_from_value (sequence[l_neighbor], l_neighbor);
                     to_insert->m_parent->m_right = to_insert;
                 }
             }
@@ -168,28 +165,15 @@ template <typename T> class cartesian_tree final
             {
                 if ( l_neighbor == -1 )
                 {
-                    auto parent_v = sequence[r_neighbor];
-                    if ( allocated.count (parent_v) == 0 )
-                    {
-                        to_insert->m_parent = create_node (parent_v, r_neighbor);
-                        allocated[parent_v] = to_insert->m_parent;
-                    }
-                    else
-                        to_insert->m_parent = allocated.at (parent_v);
+                    to_insert->m_parent = node_from_value (sequence[r_neighbor], r_neighbor);
                     to_insert->m_parent->m_left = to_insert;
                 }
                 else
                 {
                     bool left     = sequence[l_neighbor] > sequence[r_neighbor] ? true : false;
                     auto parent_v = std::max (sequence[l_neighbor], sequence[r_neighbor]);
-                    if ( allocated.count (parent_v) == 0 )
-                    {
-                        to_insert->m_parent =
-                            create_node (parent_v, left ? l_neighbor : r_neighbor);
-                        allocated[parent_v] = to_insert->m_parent;
-                    }
-                    else
-                        to_insert->m_parent = allocated.at (parent_v);
+                    to_insert->m_parent =
+                        node_from_value (parent_v, left ? l_neighbor : r_neighbor);
                     if ( left )
                         to_insert->m_parent->m_right = to_insert;
                     else
