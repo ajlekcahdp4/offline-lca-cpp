@@ -22,8 +22,6 @@ template <typename T> std::vector<int> get_left_neighbors (std::span<const T> se
     std::vector<int> neighbors {};
     for ( unsigned i = 0; i < sequence.size (); ++i )
     {
-        std::cerr << "\ni = " << i << std::endl;
-
         while ( (!stack.empty ()) && (sequence[i] <= sequence[stack.back ()]) )
             stack.pop_back ();
 
