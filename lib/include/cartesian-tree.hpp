@@ -35,32 +35,12 @@ class header
     using base_node     = dl_binary_tree_node_base;
     using base_node_ptr = dl_binary_tree_node_base *;
 
-    struct unique_node_ptr_hash
-    {
-        std::size_t operator() (const std::unique_ptr<base_node> &unique_ptr) const
-        {
-            return reinterpret_cast<std::size_t> (unique_ptr.get ());
-        }
-    };
-
-    struct unique_node_ptr_equal
-    {
-        bool operator() (const std::unique_ptr<base_node> &lhs,
-                         const std::unique_ptr<base_node> &rhs) const
-        {
-            return lhs.get () == rhs.get ();
-        }
-    };
-
   public:
     virtual ~header () {}
 
-    header ()
-    {
-        auto node = std::make_unique<base_node> ();
-        m_header  = node.get ();
-        m_nodes.emplace (std::move (node));
-    }
+    header () : m_header {std::make_unique<base_node> ()} {}
+
+    header (const std::size_t size) : m_header {std::make_unique<base_node> ()}, m_nodes {size} {}
 
     header (const header &) = delete;
 
@@ -84,14 +64,9 @@ class header
 
     // Inserts to_insert into m_nodes. Performs check that to_insert has not already been inserted
     // (Otherwise releases to_insert to avoid double free and throws an exeption).
-    void insert_node (std::unique_ptr<base_node> &&to_insert)
+    void insert_node (std::unique_ptr<base_node> &&to_insert, std::size_t idx)
     {
-        if ( m_nodes.count (to_insert) )
-        {
-            to_insert.release ();
-            throw std::runtime_error ("double insert of the node");
-        }
-        m_nodes.emplace (std::move (to_insert));
+        m_nodes[idx] = std::move (to_insert);
     }
 
     void m_reset ()
@@ -101,16 +76,13 @@ class header
         m_header    = nullptr;
         m_size      = 0;
         m_nodes.clear ();
-        auto node = std::make_unique<base_node> ();
-        m_header  = node.get ();
-        m_nodes.emplace (std::move (node));
+        m_header = std::make_unique<base_node> ();
     }
 
-    base_node_ptr m_header    = nullptr;
+    std::unique_ptr<base_node> m_header {nullptr};
     base_node_ptr m_leftmost  = nullptr;
     base_node_ptr m_rightmost = nullptr;
-    std::unordered_set<std::unique_ptr<base_node>, unique_node_ptr_hash, unique_node_ptr_equal>
-        m_nodes;
+    std::vector<std::unique_ptr<base_node>> m_nodes;
     std::size_t m_size {};
 };
 
@@ -151,7 +123,7 @@ template <typename T> class cartesian_tree final
         return *this;
     }
 
-    cartesian_tree (std::span<const value_type> sequence)
+    cartesian_tree (std::span<const value_type> sequence) : m_header_struct {sequence.size ()}
     {
         auto left_neighbors  = utils::get_left_neighbors (sequence);
         auto right_neighbors = utils::get_right_neighbors (sequence);
@@ -166,7 +138,7 @@ template <typename T> class cartesian_tree final
 
             if ( allocated.count (val) == 0 )
             {
-                to_insert      = create_node (val);
+                to_insert      = create_node (val, i);
                 allocated[val] = to_insert;
             }
             else
@@ -176,7 +148,7 @@ template <typename T> class cartesian_tree final
             {
                 if ( l_neighbor == -1 )
                 {
-                    to_insert->m_parent              = m_header_struct.m_header;
+                    to_insert->m_parent              = m_header_struct.m_header.get ();
                     m_header_struct.m_header->m_left = to_insert;
                 }
                 else
@@ -184,7 +156,7 @@ template <typename T> class cartesian_tree final
                     auto parent_v = sequence[l_neighbor];
                     if ( allocated.count (parent_v) == 0 )
                     {
-                        to_insert->m_parent = create_node (parent_v);
+                        to_insert->m_parent = create_node (parent_v, l_neighbor);
                         allocated[parent_v] = to_insert->m_parent;
                     }
                     else
@@ -199,7 +171,7 @@ template <typename T> class cartesian_tree final
                     auto parent_v = sequence[r_neighbor];
                     if ( allocated.count (parent_v) == 0 )
                     {
-                        to_insert->m_parent = create_node (parent_v);
+                        to_insert->m_parent = create_node (parent_v, r_neighbor);
                         allocated[parent_v] = to_insert->m_parent;
                     }
                     else
@@ -212,7 +184,8 @@ template <typename T> class cartesian_tree final
                     auto parent_v = std::max (sequence[l_neighbor], sequence[r_neighbor]);
                     if ( allocated.count (parent_v) == 0 )
                     {
-                        to_insert->m_parent = create_node (parent_v);
+                        to_insert->m_parent =
+                            create_node (parent_v, left ? l_neighbor : r_neighbor);
                         allocated[parent_v] = to_insert->m_parent;
                     }
                     else
@@ -353,22 +326,17 @@ template <typename T> class cartesian_tree final
 
     value_type lowest_common_ancestor (const size_type left, const size_type right)
     {
-        auto left_node_it  = std::next (begin (), left);
-        auto right_node_it = std::next (begin (), right);
-        return lowest_common_ancestor_nodes (left_node_it.m_node, right_node_it.m_node);
+        auto left_node  = m_header_struct.m_nodes[left].get ();
+        auto right_node = m_header_struct.m_nodes[right].get ();
+        return lowest_common_ancestor_nodes (left_node, right_node);
     }
 
   private:
-    void insert_node_to_nodes (std::unique_ptr<base_node> &&node_uptr)
-    {
-        m_header_struct.insert_node (std::move (node_uptr));
-    }
-
-    base_node_ptr create_node (const value_type val)
+    base_node_ptr create_node (const value_type val, const size_type idx)
     {
         auto to_insert_u = std::make_unique<node> (val);
         auto to_insert   = to_insert_u.get ();
-        m_header_struct.insert_node (std::move (to_insert_u));
+        m_header_struct.insert_node (std::move (to_insert_u), idx);
         return to_insert;
     }
 
