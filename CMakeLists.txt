@@ -16,10 +16,6 @@ set (OFFLINE_LCA_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/include)
 find_package(GTest)
 
 set(NOGTEST FALSE ON CACHE BOOL "Disable GoogleTest")
-set (COMPARE FALSE ON CACHE BOOL "Disable comparison with std::set")
-if (COMPARE)
-    message(WARNING "Comparation with std::test enabled. It should take a lot of time. If you want to disable it rerun with -DCOMPARE=False")
-endif()
 
 enable_testing()
 if(NOT NOGTEST AND GTEST_FOUND AND CMAKE_MINOR_VERSION GREATER_EQUAL 20)
