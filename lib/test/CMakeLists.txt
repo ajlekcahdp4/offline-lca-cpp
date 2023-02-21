@@ -1,6 +1,7 @@
 set (UNIT_TEST_SOURCES
     src/main.cc
     src/cartesian-tree.cc
+    src/utils.cc
 )
 
 if (ENABLE_GTEST)

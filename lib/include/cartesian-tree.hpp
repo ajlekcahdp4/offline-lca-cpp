@@ -14,6 +14,7 @@
 
 #include <iostream>
 #include <memory>
+#include <span>
 #include <unordered_set>
 #include <vector>
 
@@ -110,7 +111,7 @@ class header
     std::size_t m_size {};
 };
 
-template <typename T> class cartesian_tree
+template <typename T> class cartesian_tree final
 {
     using base_node      = dl_binary_tree_node_base;
     using base_node_ptr  = base_node *;
@@ -122,17 +123,12 @@ template <typename T> class cartesian_tree
     using size_type  = typename std::size_t;
     using value_type = T;
 
-    virtual ~cartesian_tree () {}
-
     cartesian_tree () {}
 #if 0
     cartesian_tree (const cartesian_tree &rhs);
 #endif
 
-    cartesian_tree (cartesian_tree &&rhs) noexcept
-        : m_header {std::move (rhs.m_header)}, m_sequence {std::move (rhs.m_sequence)}
-    {
-    }
+    cartesian_tree (cartesian_tree &&rhs) noexcept : m_header {std::move (rhs.m_header)} {}
 
 #if 0
     cartesian_tree &operator= (const cartesian_tree &rhs)
@@ -146,13 +142,17 @@ template <typename T> class cartesian_tree
     cartesian_tree &operator= (cartesian_tree &&rhs) noexcept
     {
         std::swap (m_header, rhs.m_header);
-        std::swap (m_sequence, rhs.m_sequence);
         return *this;
     }
 
-  protected:
+    // cartesian_tree (std::span<const value_type> sequence)
+    // {
+    //     auto lefts  = left_neighbors (sequence);
+    //     auto rights = right_neighbors (sequence);
+    // }
+
+  private:
     header m_header {};
-    std::vector<value_type> m_sequence;
 };
 
 }   // namespace containers
