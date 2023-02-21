@@ -13,6 +13,7 @@
 #include "tree-node.hpp"
 #include "utils.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -122,7 +123,7 @@ template <typename T> class cartesian_tree final
     using const_node_ptr = const node *;
 
   public:
-    using size_type  = typename std::size_t;
+    using size_type  = std::size_t;
     using value_type = T;
 
     cartesian_tree () {}
@@ -350,6 +351,13 @@ template <typename T> class cartesian_tree final
         stream << "}\n";
     }
 
+    value_type lowest_common_ancestor (const size_type left, const size_type right)
+    {
+        auto left_node_it  = std::next (begin (), left);
+        auto right_node_it = std::next (begin (), right);
+        return lowest_common_ancestor_nodes (left_node_it.m_node, right_node_it.m_node);
+    }
+
   private:
     void insert_node_to_nodes (std::unique_ptr<base_node> &&node_uptr)
     {
@@ -362,6 +370,29 @@ template <typename T> class cartesian_tree final
         auto to_insert   = to_insert_u.get ();
         m_header_struct.insert_node (std::move (to_insert_u));
         return to_insert;
+    }
+
+    std::vector<value_type> find_path_to_root (const base_node_ptr node)
+    {
+        std::vector<value_type> path;
+        auto root = m_header_struct.m_header->m_left;
+        auto cur  = node;
+        while ( cur != root )
+        {
+            path.push_back (node::value (cur));
+            cur = cur->m_parent;
+        }
+        path.push_back (node::value (root));
+        return path;
+    }
+
+    value_type lowest_common_ancestor_nodes (base_node_ptr left, base_node_ptr right)
+    {
+        auto l_path = find_path_to_root (left);
+        auto r_path = find_path_to_root (right);
+        auto [l_it, r_it] =
+            std::mismatch (l_path.rbegin (), l_path.rend (), r_path.rbegin (), r_path.rend ());
+        return *(--l_it);
     }
 
   private:
