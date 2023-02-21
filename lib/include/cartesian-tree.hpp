@@ -127,17 +127,15 @@ template <typename T> class cartesian_tree final
     {
         auto left_neighbors  = utils::get_left_neighbors (sequence);
         auto right_neighbors = utils::get_right_neighbors (sequence);
-        std::unordered_map<value_type, base_node_ptr> allocated;
 
-        auto node_from_value = [&allocated, this] (auto val, auto idx) {
-            if ( allocated.count (val) == 0 )
+        auto node_from_value = [this] (auto val, auto idx) {
+            if ( !m_header_struct.m_nodes[idx] )
             {
-                auto to_insert = this->create_node (val, idx);
-                allocated[val] = to_insert;
+                auto to_insert = create_node (val, idx);
                 return to_insert;
             }
             else
-                return allocated.at (val);
+                return m_header_struct.m_nodes[idx].get ();
         };
 
         for ( unsigned i = 0; i < sequence.size (); ++i )
@@ -182,8 +180,8 @@ template <typename T> class cartesian_tree final
             }
         }
 
-        m_header_struct.m_leftmost  = allocated.at (sequence.front ());
-        m_header_struct.m_rightmost = allocated.at (sequence.back ());
+        m_header_struct.m_leftmost  = m_header_struct.m_nodes.front ().get ();
+        m_header_struct.m_rightmost = m_header_struct.m_nodes.back ().get ();
     }
 
     template <typename TT> struct set_iterator
