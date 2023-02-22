@@ -14,6 +14,8 @@ namespace red
 {
 namespace containers
 {
+namespace detail
+{
 
 dl_binary_tree_node_base *dl_binary_tree_node_base::rotate_left_base ()
 {
@@ -57,6 +59,8 @@ dl_binary_tree_node_base *dl_binary_tree_node_base::rotate_right_base ()
     node->m_parent = lchild_ptr;
     return lchild_ptr;
 }
+
+}   // namespace detail
 
 }   // namespace containers
 }   // namespace red

@@ -16,6 +16,9 @@ namespace red
 namespace containers
 {
 
+namespace detail
+{
+
 struct dl_binary_tree_node_base
 {
     dl_binary_tree_node_base *m_parent = nullptr;
@@ -192,6 +195,8 @@ template <typename T> struct set_node : public dl_binary_tree_node_base
 
     set_node (T val) : m_value {val} {}
 };
+
+}   // namespace detail
 
 }   // namespace containers
 }   // namespace red

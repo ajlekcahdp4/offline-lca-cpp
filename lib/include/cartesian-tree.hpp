@@ -32,8 +32,8 @@ namespace containers
 class header
 {
   protected:
-    using base_node     = dl_binary_tree_node_base;
-    using base_node_ptr = dl_binary_tree_node_base *;
+    using base_node     = detail::dl_binary_tree_node_base;
+    using base_node_ptr = detail::dl_binary_tree_node_base *;
 
   public:
     virtual ~header () {}
@@ -88,9 +88,9 @@ class header
 
 template <typename T> class cartesian_tree final
 {
-    using base_node      = dl_binary_tree_node_base;
+    using base_node      = detail::dl_binary_tree_node_base;
     using base_node_ptr  = base_node *;
-    using node           = set_node<T>;
+    using node           = detail::set_node<T>;
     using node_ptr       = node *;
     using const_node_ptr = const node *;
 
