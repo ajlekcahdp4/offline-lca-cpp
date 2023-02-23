@@ -16,10 +16,8 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
-#include <memory>
 #include <span>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace red
@@ -27,66 +25,7 @@ namespace red
 namespace containers
 {
 
-// helper type to manage deafault initialization of node count, header and boundary nodes.
-// stores all tree's nodes as unique pointers.
-class header
-{
-  protected:
-    using base_node     = detail::dl_binary_tree_node_base;
-    using base_node_ptr = detail::dl_binary_tree_node_base *;
-
-  public:
-    virtual ~header () {}
-
-    header () : m_header {std::make_unique<base_node> ()} {}
-
-    header (const std::size_t size) : m_header {std::make_unique<base_node> ()}, m_nodes {size} {}
-
-    header (const header &) = delete;
-
-    header (header &&rhs)
-        : m_header {std::move (rhs.m_header)}, m_leftmost {std::move (rhs.m_leftmost)},
-          m_rightmost {std::move (rhs.m_rightmost)}, m_nodes {std::move (rhs.m_nodes)},
-          m_size {std::move (rhs.m_size)}
-    {
-    }
-
-    header &operator= (const header &) = delete;
-    header &operator= (header &&rhs)
-    {
-        std::swap (m_leftmost, rhs.m_leftmost);
-        std::swap (m_rightmost, rhs.m_rightmost);
-        std::swap (m_header, rhs.m_header);
-        std::swap (m_nodes, rhs.m_nodes);
-        std::swap (m_size, rhs.m_size);
-        return *this;
-    }
-
-    // Inserts to_insert into m_nodes. Performs check that to_insert has not already been inserted
-    // (Otherwise releases to_insert to avoid double free and throws an exeption).
-    void insert_node (std::unique_ptr<base_node> &&to_insert, std::size_t idx)
-    {
-        m_nodes[idx] = std::move (to_insert);
-    }
-
-    void m_reset ()
-    {
-        m_leftmost  = nullptr;
-        m_rightmost = nullptr;
-        m_header    = nullptr;
-        m_size      = 0;
-        m_nodes.clear ();
-        m_header = std::make_unique<base_node> ();
-    }
-
-    std::unique_ptr<base_node> m_header {nullptr};
-    base_node_ptr m_leftmost  = nullptr;
-    base_node_ptr m_rightmost = nullptr;
-    std::vector<std::unique_ptr<base_node>> m_nodes;
-    std::size_t m_size {};
-};
-
-template <typename T> class cartesian_tree final
+template <typename T, typename compare_t = std::less<T>> class cartesian_tree final
 {
     using base_node      = detail::dl_binary_tree_node_base;
     using base_node_ptr  = base_node *;
@@ -104,7 +43,10 @@ template <typename T> class cartesian_tree final
 #endif
 
     cartesian_tree (cartesian_tree &&rhs) noexcept
-        : m_header_struct {std::move (rhs.m_header_struct)}
+        : m_comp {std::move (rhs.m_comp)}, m_header {std::move (rhs.m_header)},
+          m_leftmost {std::move (rhs.m_leftmost)},
+          m_rightmost {std::move (rhs.m_rightmost)}, m_nodes {std::move (rhs.m_nodes)}
+
     {
     }
 
@@ -119,23 +61,27 @@ template <typename T> class cartesian_tree final
 
     cartesian_tree &operator= (cartesian_tree &&rhs) noexcept
     {
-        std::swap (m_header_struct, rhs.m_header_struct);
+        std::swap (m_header, rhs.m_header);
+        std::swap (m_leftmost, rhs.m_leftmost);
+        std::swap (m_rightmost, rhs.m_rightmost);
+        std::swap (m_nodes, rhs.m_nodes);
+        std::swap (m_comp, rhs.m_comp);
         return *this;
     }
 
-    cartesian_tree (std::span<const value_type> sequence) : m_header_struct {sequence.size ()}
+    cartesian_tree (std::span<const value_type> sequence) : m_comp {}
     {
         auto left_neighbors  = utils::get_left_neighbors (sequence);
         auto right_neighbors = utils::get_right_neighbors (sequence);
 
-        auto node_from_value = [this] (auto val, auto idx) {
-            if ( !m_header_struct.m_nodes[idx] )
+        auto node_from_value = [this] (auto val, auto idx) -> node_ptr {
+            if ( !m_nodes.contains (idx) )
             {
                 auto to_insert = create_node (val, idx);
                 return to_insert;
             }
             else
-                return m_header_struct.m_nodes[idx].get ();
+                return &m_nodes.at (idx);
         };
 
         for ( unsigned i = 0; i < sequence.size (); ++i )
@@ -144,14 +90,14 @@ template <typename T> class cartesian_tree final
             auto l_neighbor         = left_neighbors[i];
             auto val                = sequence[i];
 
-            base_node_ptr to_insert = node_from_value (val, i);
+            auto to_insert = node_from_value (val, i);
 
             if ( r_neighbor == -1 )
             {
                 if ( l_neighbor == -1 )
                 {
-                    to_insert->m_parent              = m_header_struct.m_header.get ();
-                    m_header_struct.m_header->m_left = to_insert;
+                    to_insert->m_parent = &m_header;
+                    m_header.m_left     = to_insert;
                 }
                 else
                 {
@@ -168,8 +114,8 @@ template <typename T> class cartesian_tree final
                 }
                 else
                 {
-                    bool left     = sequence[l_neighbor] > sequence[r_neighbor] ? true : false;
-                    auto parent_v = std::max (sequence[l_neighbor], sequence[r_neighbor]);
+                    bool left = m_comp (sequence[r_neighbor], sequence[l_neighbor]) ? true : false;
+                    auto parent_v = std::max (sequence[l_neighbor], sequence[r_neighbor], m_comp);
                     to_insert->m_parent =
                         node_from_value (parent_v, left ? l_neighbor : r_neighbor);
                     if ( left )
@@ -180,8 +126,8 @@ template <typename T> class cartesian_tree final
             }
         }
 
-        m_header_struct.m_leftmost  = m_header_struct.m_nodes.front ().get ();
-        m_header_struct.m_rightmost = m_header_struct.m_nodes.back ().get ();
+        m_leftmost  = &m_nodes.at (0);
+        m_rightmost = &m_nodes.at (sequence.size () - 1);
     }
 
     template <typename TT> struct set_iterator
@@ -216,7 +162,7 @@ template <typename T> class cartesian_tree final
         set_iterator &operator-- ()
         {
             m_node = (m_node ? static_cast<stored_ptr_t> (m_node->predecessor ())
-                             : static_cast<stored_ptr_t> (m_tree->m_header_struct.m_rightmost));
+                             : static_cast<stored_ptr_t> (m_tree->m_rightmost));
             return *this;
         }
 
@@ -224,7 +170,7 @@ template <typename T> class cartesian_tree final
         {
             auto tmp = *this;
             m_node   = (m_node ? static_cast<stored_ptr_t> (m_node->predecessor ())
-                               : static_cast<stored_ptr_t> (m_tree->m_header_struct.m_rightmost));
+                               : static_cast<stored_ptr_t> (m_tree->m_rightmost));
             return tmp;
         }
 
@@ -242,15 +188,9 @@ template <typename T> class cartesian_tree final
     using const_reverse_iterator = typename std::reverse_iterator<const_iterator>;
 
     //  accessors
-    const_iterator begin () const
-    {
-        return const_iterator {static_cast<node_ptr> (m_header_struct.m_leftmost), this};
-    }
+    const_iterator begin () const { return const_iterator {m_leftmost, this}; }
 
-    iterator begin ()
-    {
-        return iterator {static_cast<node_ptr> (m_header_struct.m_leftmost), this};
-    }
+    iterator begin () { return iterator {m_leftmost, this}; }
 
     const_iterator end () const { return const_iterator {nullptr, this}; }
 
@@ -264,7 +204,7 @@ template <typename T> class cartesian_tree final
 
     const_reverse_iterator rend () const { return const_reverse_iterator {begin ()}; }
 
-    size_type size () const { return m_header_struct.m_size; }
+    size_type size () const { return m_nodes.size (); }
 
     bool empty () const { return !size (); }
 
@@ -301,31 +241,29 @@ template <typename T> class cartesian_tree final
             stream << "\tnode" << pos.m_node << " -> node" << pos.m_node->m_parent
                    << " [color=red, label=\" parent \"];\n";
         }
-        stream << "\tnode_leftmost -> node" << m_header_struct.m_leftmost << "\n";
-        stream << "\tnode_rightmost -> node" << m_header_struct.m_rightmost << "\n";
+        stream << "\tnode_leftmost -> node" << m_leftmost << "\n";
+        stream << "\tnode_rightmost -> node" << m_rightmost << "\n";
         stream << "}\n";
     }
 
     value_type lowest_common_ancestor (const size_type left, const size_type right)
     {
-        auto left_node  = m_header_struct.m_nodes[left].get ();
-        auto right_node = m_header_struct.m_nodes[right].get ();
+        auto left_node  = &m_nodes.at (left);
+        auto right_node = &m_nodes.at (right);
         return lowest_common_ancestor_nodes (left_node, right_node);
     }
 
   private:
-    base_node_ptr create_node (const value_type val, const size_type idx)
+    node_ptr create_node (const value_type val, const size_type idx)
     {
-        auto to_insert_u = std::make_unique<node> (val);
-        auto to_insert   = to_insert_u.get ();
-        m_header_struct.insert_node (std::move (to_insert_u), idx);
-        return to_insert;
+        m_nodes.emplace (idx, val);
+        return &m_nodes.at (idx);
     }
 
     std::vector<value_type> find_path_to_root (const base_node_ptr node)
     {
         std::vector<value_type> path;
-        auto root = m_header_struct.m_header->m_left;
+        auto root = m_header.m_left;
         auto cur  = node;
         while ( cur != root )
         {
@@ -346,7 +284,11 @@ template <typename T> class cartesian_tree final
     }
 
   private:
-    header m_header_struct {};
+    compare_t m_comp {};
+    node m_header;
+    node_ptr m_leftmost  = nullptr;
+    node_ptr m_rightmost = nullptr;
+    std::unordered_map<size_type, node> m_nodes;
 };
 
 }   // namespace containers
