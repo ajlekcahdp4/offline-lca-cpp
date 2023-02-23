@@ -2,6 +2,7 @@ set (UNIT_TEST_SOURCES
     src/main.cc
     src/cartesian-tree.cc
     src/utils.cc
+    src/disjoint_map_forest.cc
 )
 
 if (ENABLE_GTEST)

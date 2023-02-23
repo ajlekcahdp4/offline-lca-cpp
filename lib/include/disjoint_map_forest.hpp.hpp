@@ -52,7 +52,7 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
     bool make_set (const key_type &key, const value_type &val)
     {
         size_type idx = m_nodes.size ();
-        bool inserted = m_indeces.emplace (key, index).second;
+        bool inserted = m_indices.emplace (key, idx).second;
         if ( inserted )
         {
             m_nodes.emplace_back (idx, val);
@@ -82,9 +82,9 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
     size_type find_set_index (const key_type &key)
     {
         std::vector<size_type> stack;
-        auto node_idx    = m_indeces.at (key);
+        auto node_idx    = m_indices.at (key);
         auto &parent_idx = m_nodes.at (node_idx).m_parent_index;
-        while ( parent != node_idx )
+        while ( parent_idx != node_idx )
         {
             stack.push_back (node_idx);
             node_idx   = parent_idx;
@@ -92,7 +92,7 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
         }
         while ( !stack.empty () )
         {
-            parent_idx (stack.back ()) = node_idx;
+            parent_index (stack.back ()) = node_idx;
             stack.pop_back ();
         }
         return parent_idx;
@@ -100,14 +100,14 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
 
     proxy_set find_set (const key_type &key) { return proxy_set {find_set_index (key), this}; }
 
-    void union_by_rank (const key_type &left_key, const key_rype &right_key)
+    void union_by_rank (const key_type &left_key, const key_type &right_key)
     {
         if ( left_key != right_key )
         {
             auto left_idx   = find_set_index (left_key);
-            auto right_idx  = find_set_index (left_key);
-            auto left_node  = m_nodes.at (left_idx);
-            auto right_node = m_nodes.at (right_idx);
+            auto right_idx   = find_set_index (right_key);
+            auto &left_node  = m_nodes.at (left_idx);
+            auto &right_node = m_nodes.at (right_idx);
 
             if ( left_node.m_rank > right_node.m_rank )
                 right_node.m_parent_index = left_idx;
@@ -126,22 +126,26 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
         for ( const auto &v : m_indices )
         {
             os << "\tnode_" << v.second << " [label = \"" << v.first << ":"
-               << m_nodes.at (v.second).m_val << "\"];\n";
+               << m_nodes.at (v.second).m_value << "\"];\n";
             os << "\tnode_" << v.second << " -> node_" << parent_index (v.second) << ";\n";
         }
         os << "}\n";
     }
 
   private:
-    node_type &parent_index (const size_type idx) { return m_nodes.at (idx)->m_parent_index; }
+    size_type &parent_index (const size_type idx) { return m_nodes.at (idx).m_parent_index; }
+
+    size_type parent_index (const size_type idx) const { return m_nodes.at (idx).m_parent_index; }
+
+    node_type &at (const size_type &index) { return m_nodes.at (index); }
 
   private:
     std::vector<node_type> m_nodes;
-    std::unordered_map<key_type, size_type> m_indeces;
+    std::unordered_map<key_type, size_type> m_indices;
 };
 
 template <typename key_t, typename value_t>
-std::ostream operator<< (std::ostream &os, const disjoint_map_forest<key_t, value_t> &forest)
+std::ostream &operator<< (std::ostream &os, const disjoint_map_forest<key_t, value_t> &forest)
 {
     forest.dump (os);
     return os;
