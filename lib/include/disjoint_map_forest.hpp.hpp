@@ -38,27 +38,21 @@ template <typename T> struct disjoint_map_forest_node final
 
 }   // namespace detail
 
-template <typename key_t, typename value_t> class disjoint_map_forest final
+template <typename value_t> class disjoint_map_forest final
 {
     using node_type = detail::disjoint_map_forest_node<value_t>;
 
   public:
-    using key_type   = key_t;
     using value_type = typename node_type::value_type;
     using size_type  = typename node_type::size_type;
+    using key_type   = size_type;
 
     disjoint_map_forest () {}
 
-    bool make_set (const key_type &key, const value_type &val)
+    void append_set (const value_type &val)
     {
-        size_type idx = m_nodes.size ();
-        bool inserted = m_indices.emplace (key, idx).second;
-        if ( inserted )
-        {
-            m_nodes.emplace_back (idx, val);
-            return true;
-        }
-        return false;
+        auto idx = m_nodes.size ();
+        m_nodes.emplace_back (idx, val);
     }
 
     struct proxy_set
@@ -79,11 +73,10 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
         disjoint_map_forest *m_forest;
     };
 
-    size_type find_set_index (const key_type &key)
+    size_type find_set_index (key_type node_idx)
     {
         std::vector<size_type> stack;
-        auto node_idx    = m_indices.at (key);
-        auto &parent_idx = m_nodes.at (node_idx).m_parent_index;
+        auto parent_idx = parent_index (node_idx);
         while ( parent_idx != node_idx )
         {
             stack.push_back (node_idx);
@@ -123,11 +116,10 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
     void dump (std::ostream &os) const
     {
         os << "digraph {\n";
-        for ( const auto &v : m_indices )
+        for ( size_type i = 0; i < m_nodes.size (); ++i )
         {
-            os << "\tnode_" << v.second << " [label = \"" << v.first << ":"
-               << m_nodes.at (v.second).m_value << "\"];\n";
-            os << "\tnode_" << v.second << " -> node_" << parent_index (v.second) << ";\n";
+            os << "\tnode_" << i << " [label = \"" << i << ":" << at (i).m_value << "\"];\n";
+            os << "\tnode_" << i << " -> node_" << at (i).m_parent_index << ";\n";
         }
         os << "}\n";
     }
@@ -139,13 +131,14 @@ template <typename key_t, typename value_t> class disjoint_map_forest final
 
     node_type &at (const size_type &index) { return m_nodes.at (index); }
 
+    node_type at (const size_type &index) const { return m_nodes.at (index); }
+
   private:
     std::vector<node_type> m_nodes;
-    std::unordered_map<key_type, size_type> m_indices;
 };
 
-template <typename key_t, typename value_t>
-std::ostream &operator<< (std::ostream &os, const disjoint_map_forest<key_t, value_t> &forest)
+template <typename value_t>
+std::ostream &operator<< (std::ostream &os, const disjoint_map_forest<value_t> &forest)
 {
     forest.dump (os);
     return os;
